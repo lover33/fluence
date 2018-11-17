@@ -92,7 +92,7 @@ object SolverInfo {
       }
       (longTermLocation, ip, startPortString, endPortString) = argsTuple
 
-      dockerWorkDir = System.getProperty("user.dir") + "/statemachine/docker"
+      dockerWorkDir = sys.env("PWD") + "/statemachine/docker"
 
       validatorKeyStr <- EitherT.fromEither[IO](
         Try(

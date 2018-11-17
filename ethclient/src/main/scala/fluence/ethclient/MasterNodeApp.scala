@@ -90,6 +90,15 @@ object MasterNodeApp extends IOApp with LazyLogging {
             config.deployerContractAddress
           ).addSingleTopic(EventEncoder.encode(CLUSTERFORMED_EVENT))
 
+          _ <- contract
+            .addNode(
+              solverInfo.validatorKeyBytes32,
+              solverInfo.addressBytes24,
+              solverInfo.startPortUint16,
+              solverInfo.endPortUint16
+            )
+            .call[IO]
+
           clusters <- contract.getNodeClusters(solverInfo.validatorKeyBytes32).call[IO]
 
           _ <- clusters.getValue.asScala.toList
@@ -101,15 +110,6 @@ object MasterNodeApp extends IOApp with LazyLogging {
                   .flatMap(y => processClusterFormed(clusterTupleToClusterFormed(x, y), solverInfo))
             )
             .sequence_
-
-          _ <- contract
-            .addNode(
-              solverInfo.validatorKeyBytes32,
-              solverInfo.addressBytes24,
-              solverInfo.startPortUint16,
-              solverInfo.endPortUint16
-            )
-            .call[IO]
 
           _ <- contract
             .clusterFormedEventObservable(filter)
@@ -143,7 +143,7 @@ object MasterNodeApp extends IOApp with LazyLogging {
       _ <- IO { logger.info("joining cluster '{}' as node {}", clusterData.clusterName, clusterData.nodeIndex) }
       _ <- initializeTendermintConfigDirectory(clusterData.nodeInfo, clusterData.longTermLocation)
 
-      dockerWorkDir = System.getProperty("user.dir") + "/statemachine/docker"
+      dockerWorkDir = sys.env("PWD") + "/statemachine/docker"
       vmCodeDir = dockerWorkDir + "/examples/vmcode-" + clusterData.code
 
       dockerRunCommand = DockerRunBuilder()
