@@ -83,13 +83,6 @@ object MasterNodeApp extends IOApp with LazyLogging {
 
           contract <- ethClient.getDeployer[IO](config.deployerContractAddress, config.deployerContractOwnerAccount)
 
-          currentBlock = ethClient.web3.ethBlockNumber().send().getBlockNumber
-          filter = new EthFilter(
-            DefaultBlockParameter.valueOf(currentBlock),
-            DefaultBlockParameterName.LATEST,
-            config.deployerContractAddress
-          ).addSingleTopic(EventEncoder.encode(CLUSTERFORMED_EVENT))
-
           _ <- contract
             .addNode(
               solverInfo.validatorKeyBytes32,
@@ -110,6 +103,13 @@ object MasterNodeApp extends IOApp with LazyLogging {
                   .flatMap(y => processClusterFormed(clusterTupleToClusterFormed(x, y), solverInfo))
             )
             .sequence_
+
+          currentBlock = ethClient.web3.ethBlockNumber().send().getBlockNumber
+          filter = new EthFilter(
+            DefaultBlockParameter.valueOf(currentBlock),
+            DefaultBlockParameterName.LATEST,
+            config.deployerContractAddress
+          ).addSingleTopic(EventEncoder.encode(CLUSTERFORMED_EVENT))
 
           _ <- contract
             .clusterFormedEventObservable(filter)
@@ -143,7 +143,8 @@ object MasterNodeApp extends IOApp with LazyLogging {
       _ <- IO { logger.info("joining cluster '{}' as node {}", clusterData.clusterName, clusterData.nodeIndex) }
       _ <- initializeTendermintConfigDirectory(clusterData.nodeInfo, clusterData.longTermLocation)
 
-      dockerWorkDir = sys.env("PWD") + "/statemachine/docker"
+      //dockerWorkDir = sys.env("PWD") + "/statemachine/docker"
+      dockerWorkDir = getClass.getClassLoader.getResource("container-data").getPath
       vmCodeDir = dockerWorkDir + "/examples/vmcode-" + clusterData.code
 
       dockerRunCommand = DockerRunBuilder()
@@ -160,7 +161,7 @@ object MasterNodeApp extends IOApp with LazyLogging {
 
       _ = logger.info("running {}", dockerRunCommand)
 
-      containerId <- IO { Process(dockerRunCommand, new File(dockerWorkDir)).!! }
+      containerId <- IO { Process(dockerRunCommand, new File(dockerWorkDir)) /*.!!*/ }
       _ = logger.info("launched container {}", containerId)
     } yield ()
 

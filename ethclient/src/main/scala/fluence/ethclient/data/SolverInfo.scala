@@ -20,6 +20,7 @@ import java.io.File
 
 import cats.data.EitherT
 import cats.effect.IO
+import fluence.ethclient.MasterNodeApp.getClass
 import fluence.ethclient.helpers.DockerRunBuilder
 import fluence.ethclient.helpers.Web3jConverters.{base64ToBytes32, solverAddressToBytes24}
 import io.circe.generic.auto._
@@ -92,7 +93,8 @@ object SolverInfo {
       }
       (longTermLocation, ip, startPortString, endPortString) = argsTuple
 
-      dockerWorkDir = sys.env("PWD") + "/statemachine/docker"
+      //dockerWorkDir = sys.env("PWD") + "/statemachine/docker"
+      dockerWorkDir = getClass.getClassLoader.getResource("container-data").getPath
 
       validatorKeyStr <- EitherT.fromEither[IO](
         Try(
