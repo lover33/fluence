@@ -19,7 +19,6 @@ package fluence.ethclient
 import java.io.File
 
 import cats.effect.{ContextShift, IO, Timer}
-import fluence.ethclient.MasterNodeApp.getClass
 import fluence.ethclient.data.{DeployerContractConfig, SolverInfo}
 import fluence.ethclient.helpers.RemoteCallOps._
 import fluence.ethclient.helpers.Web3jConverters._
@@ -30,8 +29,7 @@ import slogging.MessageFormatter.DefaultPrefixFormatter
 import slogging.{LazyLogging, LogLevel, LoggerConfig, PrintLoggerFactory}
 
 import scala.concurrent.ExecutionContext.Implicits.global
-import scala.sys.process.{Process, ProcessLogger, _}
-import scala.util.Random
+import scala.sys.process.{Process, ProcessLogger}
 
 /**
  * Integration test for Deployer contract and Master node
@@ -65,8 +63,6 @@ class ContractMasterIntegrationSpec extends FlatSpec with LazyLogging with Match
   }
 
   "Ethereum client" should "receive an event" in {
-    val str = Random.alphanumeric.take(10).mkString
-    val bytes = stringToBytes32(str)
     val contractAddress = "0x9995882876ae612bfd829498ccd73dd962ec950a"
     val owner = "0x4180FC65D613bA7E1a385181a219F1DBfE7Bf11d"
 
@@ -77,7 +73,7 @@ class ContractMasterIntegrationSpec extends FlatSpec with LazyLogging with Match
         whitelistTxReceipt <- contract.addAddressToWhitelist(new Address(owner)).call[IO]
         _ = assert(whitelistTxReceipt.isStatusOK)
 
-        codeTxReceipt <- contract.addCode(bytes, bytes, new Uint8(1)).call[IO]
+        codeTxReceipt <- contract.addCode(stringToBytes32("llamadb"), stringToBytes32("receipt"), new Uint8(1)).call[IO]
         _ = assert(codeTxReceipt.isStatusOK)
       } yield ()
     }.unsafeRunSync()

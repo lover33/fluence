@@ -161,7 +161,7 @@ object MasterNodeApp extends IOApp with LazyLogging {
 
       _ = logger.info("running {}", dockerRunCommand)
 
-      containerId <- IO { Process(dockerRunCommand, new File(dockerWorkDir)) /*.!!*/ }
+      containerId <- IO { Process(dockerRunCommand, new File(dockerWorkDir)).!! }
       _ = logger.info("launched container {}", containerId)
     } yield ()
 
