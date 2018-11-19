@@ -15,6 +15,7 @@
  */
 
 package fluence.ethclient.helpers
+import slogging.LazyLogging
 
 /**
  * Builder for basic `docker run` command parameters.
@@ -22,7 +23,7 @@ package fluence.ethclient.helpers
  * @param command current command
  */
 @deprecated("Use fluence.node.docker.DockerParams instead", "15.11.2018")
-case class DockerRunBuilder(private val command: Vector[String]) {
+case class DockerRunBuilder(private val command: Vector[String]) extends LazyLogging {
 
   /**
    * Adds a single option to command.
@@ -64,7 +65,10 @@ case class DockerRunBuilder(private val command: Vector[String]) {
    *
    * @param imageName name of image to run
    */
-  def build(imageName: String): Vector[String] = add(imageName).command
+  def build(imageName: String): Vector[String] = {
+    logger.info("builder params: {}", command.mkString(" "))
+    add(imageName).command
+  }
 }
 
 object DockerRunBuilder {
