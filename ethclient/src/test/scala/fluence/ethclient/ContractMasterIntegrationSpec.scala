@@ -19,6 +19,7 @@ package fluence.ethclient
 import java.io.File
 
 import cats.effect.{ContextShift, IO, Timer}
+import fluence.ethclient.MasterNodeApp.getClass
 import fluence.ethclient.data.{DeployerContractConfig, SolverInfo}
 import fluence.ethclient.helpers.RemoteCallOps._
 import fluence.ethclient.helpers.Web3jConverters._
@@ -81,9 +82,9 @@ class ContractMasterIntegrationSpec extends FlatSpec with LazyLogging with Match
       } yield ()
     }.unsafeRunSync()
 
-    val userHome = sys.env("HOME")
+    val longTermKeysDir = getClass.getClassLoader.getResource("long-term-keys/node0").getPath
     val solverInfo =
-      SolverInfo(List(userHome + "/.fluence/long-term-keys/node0", "192.168.0.5", "25000", "25001")).value
+      SolverInfo(List(longTermKeysDir, "192.168.0.5", "25000", "25001")).value
         .unsafeRunSync()
         .left
         .map(x => throw x)
