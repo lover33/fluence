@@ -52,7 +52,7 @@ object ClusterData {
       clusterID,
       solverIDs = tuple.getValue4,
       genesisTime = tuple.getValue3,
-      storageHash = tuple.getValue1,
+      codeAddress = tuple.getValue1,
       solverAddrs = tuple.getValue5,
       solverPorts = tuple.getValue6,
       nodeConfig = nodeConfig
@@ -63,7 +63,7 @@ object ClusterData {
     clusterID: Bytes32,
     solverIDs: DynamicArray[Bytes32],
     genesisTime: Uint256,
-    storageHash: Bytes32,
+    codeAddress: Bytes32,
     solverAddrs: DynamicArray[Bytes24],
     solverPorts: DynamicArray[Uint16],
     nodeConfig: NodeConfig
@@ -73,7 +73,7 @@ object ClusterData {
     if (nodeIndex == -1)
       None
     else {
-      val storage = CodePath(storageHash)
+      val storage = CodePath(codeAddress)
       val persistentPeers = PersistentPeers.fromAddrsAndPorts(solverAddrs, solverPorts)
       val cluster = Cluster(genesis, persistentPeers.toString, persistentPeers.externalAddrs)
       val nodeInfo = NodeInfo(cluster, nodeIndex.toString)

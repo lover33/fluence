@@ -26,9 +26,9 @@ import org.web3j.abi.datatypes.generated.Bytes32
 
 import scala.language.higherKinds
 
-case class CodePath(storageHash: Bytes32) {
-  lazy val asString: String = bytes32ToString(storageHash)
-  lazy val asHex: String = binaryToHex(storageHash.getValue)
+case class CodePath(codeAddress: Bytes32) {
+  lazy val asString: String = bytes32ToString(codeAddress)
+  lazy val asHex: String = binaryToHex(codeAddress.getValue)
 }
 
 sealed trait CodeManager[F[_]] {

@@ -31,11 +31,11 @@ pragma solidity ^0.4.24;
 // TODO: what are gas usage goals/targets? is there any limit?
 // TODO: calculate current gas usage
 
-// TODO: should it be hash of the `storageHash`? so no one could download it
+// TODO: should it be hash of the `codeAddress`? so no one could download it
 // in other words, is code private?
 
 // Code:
-// TODO: should storageHash be of type hash?
+// TODO: should codeAddress be of type hash?
 // TODO: should there be more statuses to just "deployed or not"?
 // e.g 'deploying', 'deployed'
 // maybe how many times it gets deployed, if that's the case
@@ -68,13 +68,27 @@ contract Deployer is Whitelist {
         uint16 endPort;
         uint16 currentPort;
         address owner;
+        bool pinned;
     }
 
+    // Represents deployed or enqueued (waiting to be deployed) code
+    // code is stored in Swarm at codeAddress, is deployed by developer
+    // and requires to be hosted on cluster of clusterSize nodes
     struct Code {
-        bytes32 storageHash;
+        // code address in Swarm; also SwarmHash of the code
+        bytes32 codeAddress;
+
+        // Swarm receipt insuring code availability
         bytes32 storageReceipt;
+
+        // number of real-time nodes required to host this code
         uint8 clusterSize;
+
+        // ethereum address of the developer submitted that code
         address developer;
+
+        // nodes that should host that code; nodes' owner should be the same as code's developer
+        bytes32[] pinnedNodes;
     }
 
     struct BusyCluster {
@@ -89,11 +103,17 @@ contract Deployer is Whitelist {
 
     // Emitted when there is enough ready Nodes for some Code
     // Nodes' solvers should form a cluster in reaction to this event
-    event ClusterFormed(bytes32 clusterID, bytes32 storageHash, uint genesisTime,
-        bytes32[] solverIDs, bytes24[] solverAddrs, uint16[] solverPorts);
+    event ClusterFormed(
+        bytes32 clusterID,
+        bytes32 codeAddress,
+        uint genesisTime,
+        bytes32[] solverIDs,
+        bytes24[] solverAddrs,
+        uint16[] solverPorts
+    );
 
     // Emitted when Code is enqueued, telling that there is not enough Solvers yet
-    event CodeEnqueued(bytes32 storageHash);
+    event CodeEnqueued(bytes32 codeAddress);
 
     // Emitted on every new Node
     event NewNode(bytes32 id);
@@ -116,6 +136,8 @@ contract Deployer is Whitelist {
     // Codes waiting for nodes
     Code[] internal enqueuedCodes;
 
+    mapping(address => Code) pinnedCodes;
+
     /** @dev Adds node with specified port range to the work-waiting queue
       * @param nodeID some kind of unique ID
       * @param nodeAddress currently Tendermint p2p key + IP address, subject to change
@@ -124,7 +146,7 @@ contract Deployer is Whitelist {
       * emits NewNode event about new node
       * emits ClusterFormed event when there is enough nodes for some Code
       */
-    function addNode(bytes32 nodeID, bytes24 nodeAddress, uint16 startPort, uint16 endPort)
+    function addNode(bytes32 nodeID, bytes24 nodeAddress, uint16 startPort, uint16 endPort, bool pinned)
         external
     {
         require(whitelist(msg.sender), "The sender is not in whitelist");
@@ -134,31 +156,56 @@ contract Deployer is Whitelist {
         // if startPort == endPort, then node can host just a single code
         require(startPort <= endPort, "Port range is empty or incorrect");
 
-        nodes[nodeID] = Node(nodeID, nodeAddress, startPort, endPort, startPort, msg.sender);
-        readyNodes.push(nodeID);
+        nodes[nodeID] = Node(nodeID, nodeAddress, startPort, endPort, startPort, msg.sender, pinned);
         nodesIndices.push(nodeID);
 
         emit NewNode(nodeID);
 
-        // match code to clusters until no matches left
-        while (matchWork()) {}
+        if (pinned) {
+            matchPinnedWork(msg.sender);
+        } else {
+            readyNodes.push(nodeID);
+            // match code to clusters until no matches left
+            while (matchWork()) {}
+        }
     }
 
-    /** @dev Adds new Code to be deployed on Solvers when there are enough of them
-      * @param storageHash Swarm storage hash; allows code distributed and downloaded through it
+    /**
+      * @dev Adds new Code to be deployed on Solvers when there are enough of them
+      * @param codeAddress Swarm storage hash; allows code distributed and downloaded through it
       * @param storageReceipt Swarm receipt, serves as a proof that code is stored
       * @param clusterSize specifies number of Solvers that must serve Code
+      * @param pinnedNodeIDs specifies nodes that should be used for hosting that code
       * emits ClusterFormed event when there is enough nodes for the Code and emits CodeEnqueued otherwise, subject to change
       */
-    function addCode(bytes32 storageHash, bytes32 storageReceipt, uint8 clusterSize)
+    function addCode(bytes32 codeAddress, bytes32 storageReceipt, uint8 clusterSize, bytes32[] pinnedNodeIDs)
         external
     {
         require(whitelist(msg.sender), "The sender is not in whitelist");
+        require(pinnedNodeIDs.length == 0 || clusterSize == pinnedNodeIDs.length,
+            "number of pinned nodes should be the same as desired clusterSize");
 
-        enqueuedCodes.push(Code(storageHash, storageReceipt, clusterSize, msg.sender));
+        Code memory code = Code(codeAddress, storageReceipt, clusterSize, msg.sender, pinnedNodeIDs);
 
-        if (!matchWork()) {
-            emit CodeEnqueued(storageHash);
+        if (!enqueueAndMatch(code)) {
+            emit CodeEnqueued(codeAddress);
+        }
+    }
+
+    /**
+     * Saves code in contract and tries to match it with available nodes
+     */
+    function enqueueAndMatch(Code code)
+    internal
+    returns (bool)
+    {
+        // if code is pinned to nodes
+        if (code.pinnedNodes.length != 0) {
+            pinnedCodes[msg.sender] = code;
+            return matchPinnedWork(msg.sender);
+        } else {
+            enqueuedCodes.push(code);
+            return matchWork();
         }
     }
 
@@ -177,7 +224,9 @@ contract Deployer is Whitelist {
         // looking for a code that can be deployed given current number of readyNodes
         for (; idx < enqueuedCodes.length; idx++) {
             code = enqueuedCodes[idx];
-            if (readyNodes.length >= code.clusterSize) {
+
+            // ignoring pinned codes
+            if (code.pinnedNodes.length == 0 && readyNodes.length >= code.clusterSize) {
                 // suitable code found, stop on current idx
                 break;
             }
@@ -227,6 +276,14 @@ contract Deployer is Whitelist {
             }
         }
 
+        formCluster(code, nodeIDs, solverAddrs, solverPorts, solverOwners);
+
+        return true;
+    }
+
+    function formCluster(Code code, bytes32[] nodeIDs, bytes24[] solverAddrs, uint16[] solverPorts, address[] solverOwners)
+    internal
+    {
         // clusterID generation could be arbitrary, it doesn't depend on actual cluster count
         bytes32 clusterID = bytes32(clusterCount++);
         uint genesisTime = now;
@@ -236,8 +293,7 @@ contract Deployer is Whitelist {
 
         // notify Fluence node it's time to run real-time nodes and
         // create a Tendermint cluster hosting selected code
-        emit ClusterFormed(clusterID, code.storageHash, genesisTime, nodeIDs, solverAddrs, solverPorts);
-        return true;
+        emit ClusterFormed(clusterID, code.codeAddress, genesisTime, nodeIDs, solverAddrs, solverPorts);
     }
 
     /** @dev Removes an element on specified position from 'enqueuedCodes'
@@ -264,5 +320,48 @@ contract Deployer is Whitelist {
             readyNodes[index] = readyNodes[readyNodes.length - 1];
         }
         --readyNodes.length;
+    }
+
+    /**
+     * @dev Matches pinned code with pinned nodes
+     * @param developer ethereum address; nodes and code are pinned to that address by node.owner and code.developer
+     * if any node pinned to that address runs out of open ports, transaction will be reverted
+     */
+    function matchPinnedWork(address developer)
+    internal
+    returns (bool)
+    {
+        Code memory code = pinnedCodes[developer];
+
+        // no code has been submitted yet
+        if (code.codeAddress == 0) return false;
+
+        // arrays containing nodes' data to be sent in a `ClusterFormed` event
+        bytes32[] memory nodeIDs = new bytes32[](code.clusterSize);
+        bytes24[] memory solverAddrs = new bytes24[](code.clusterSize);
+        uint16[] memory solverPorts = new uint16[](code.clusterSize);
+        address[] memory solverOwners = new address[](code.clusterSize);
+
+        for (uint i = 0; i < code.clusterSize; i++) {
+            // copy node's data to arrays so it can be sent in event
+            bytes32 nodeID = code.pinnedNodes[i];
+            Node memory node = nodes[nodeID];
+
+            // node isn't initialized; not enough nodes registered yet
+            if (node.id == 0) return false;
+            require(node.currentPort <= node.endPort, "No free ports on pinned node");
+
+            // copy node's data to arrays so it can be sent in event
+            nodeIDs[i] = nodeID;
+            solverAddrs[i] = node.nodeAddress;
+            solverPorts[i] = node.currentPort;
+            solverOwners[i] = node.owner;
+
+            nodes[nodeID].currentPort++;
+        }
+
+        formCluster(code, nodeIDs, solverAddrs, solverPorts, solverOwners);
+
+        return true;
     }
 }

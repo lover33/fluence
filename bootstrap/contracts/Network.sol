@@ -66,7 +66,7 @@ contract Network is Deployer {
         require(cluster.clusterID > 0, "there is no such cluster");
 
         return (
-            cluster.code.storageHash,
+            cluster.code.codeAddress,
             cluster.code.storageReceipt,
             cluster.genesisTime,
             cluster.nodeIDs,
@@ -94,7 +94,7 @@ contract Network is Deployer {
 
         bytes32[] memory clusterIDs = new bytes32[](clusters.length);
         uint[] memory genesisTimes = new uint[](clusters.length);
-        bytes32[] memory storageHashes = new bytes32[](clusters.length);
+        bytes32[] memory codeAddresses = new bytes32[](clusters.length);
         bytes32[] memory storageReceipts = new bytes32[](clusters.length);
         uint8[] memory clusterSizes = new uint8[](clusters.length);
         address[] memory developers = new address[](clusters.length);
@@ -103,13 +103,13 @@ contract Network is Deployer {
             BusyCluster memory cluster = clusters[k];
             clusterIDs[k] = cluster.clusterID;
             genesisTimes[k] = cluster.genesisTime;
-            storageHashes[k] = cluster.code.storageHash;
+            codeAddresses[k] = cluster.code.codeAddress;
             storageReceipts[k] = cluster.code.storageReceipt;
             clusterSizes[k] = cluster.code.clusterSize;
             developers[k] = cluster.code.developer;
         }
 
-        return (clusterIDs, genesisTimes, storageHashes, storageReceipts, clusterSizes, developers);
+        return (clusterIDs, genesisTimes, codeAddresses, storageReceipts, clusterSizes, developers);
     }
 
     /** @dev Gets nodes that already members in all registered clusters
@@ -162,7 +162,7 @@ contract Network is Deployer {
     view
     returns(bytes32[], bytes32[], uint8[], address[])
     {
-        bytes32[] memory storageHashes = new bytes32[](enqueuedCodes.length);
+        bytes32[] memory codeAddresses = new bytes32[](enqueuedCodes.length);
         bytes32[] memory storageReceipts = new bytes32[](enqueuedCodes.length);
         uint8[] memory clusterSizes = new uint8[](enqueuedCodes.length);
         address[] memory developers = new address[](enqueuedCodes.length);
@@ -170,13 +170,13 @@ contract Network is Deployer {
         for (uint i = 0; i < enqueuedCodes.length; i++) {
             Code memory code = enqueuedCodes[i];
 
-            storageHashes[i] = code.storageHash;
+            codeAddresses[i] = code.codeAddress;
             storageReceipts[i] = code.storageReceipt;
             clusterSizes[i] = code.clusterSize;
             developers[i] = code.developer;
         }
 
-        return (storageHashes, storageReceipts, clusterSizes, developers);
+        return (codeAddresses, storageReceipts, clusterSizes, developers);
     }
 
     /** @dev Gets nodes that have free ports to host code
