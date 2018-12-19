@@ -23,11 +23,11 @@ import cats.effect.concurrent.{Deferred, MVar}
 import cats.effect.{ContextShift, IO, Timer}
 import fluence.ethclient.Network.ClusterFormedEventResponse
 import fluence.ethclient.helpers.RemoteCallOps._
-import fluence.ethclient.helpers.Web3jConverters._
+import fluence.ethclient.helpers.Web3jConverters.{listToDynamicArray, stringToBytes32, _}
 import org.scalatest.{BeforeAndAfterAll, FlatSpec, Matchers}
 import org.web3j.abi.EventEncoder
-import org.web3j.abi.datatypes.{Address, Bool, DynamicArray}
-import org.web3j.abi.datatypes.generated.{Bytes32, Uint16, Uint8}
+import org.web3j.abi.datatypes.generated.{Uint16, Uint8}
+import org.web3j.abi.datatypes.{Address, Bool}
 import org.web3j.protocol.core.methods.response.Log
 import slogging.LazyLogging
 
@@ -97,8 +97,7 @@ class ClusterContractSpec extends FlatSpec with LazyLogging with Matchers with B
 
               txReceipt <- contract.addAddressToWhitelist(new Address(owner)).call[IO]
               _ = assert(txReceipt.isStatusOK)
-              arr = DynamicArray.empty("bytes32").asInstanceOf[DynamicArray[Bytes32]]
-              _ <- contract.addCode(bytes, bytes, new Uint8(2), arr).call[IO]
+              _ <- contract.addCode(bytes, bytes, new Uint8(2), listToDynamicArray(List.empty)).call[IO]
 
               _ <- contract
                 .addNode(

@@ -22,7 +22,7 @@ import cats.syntax.functor._
 import fluence.ethclient.Network.{CLUSTERFORMED_EVENT, ClusterFormedEventResponse}
 import fluence.ethclient.helpers.JavaRxToFs2._
 import fluence.ethclient.helpers.RemoteCallOps._
-import fluence.ethclient.helpers.Web3jConverters.stringToBytes32
+import fluence.ethclient.helpers.Web3jConverters.{listToDynamicArray, stringToBytes32}
 import fluence.ethclient.{EthClient, Network}
 import fluence.node.config.NodeConfig
 import fluence.node.tendermint.ClusterData
@@ -177,19 +177,14 @@ class FluenceContract(private val ethClient: EthClient, private val contract: Ne
   def addCode[F[_]: Async](
     code: String = "llamadb",
     clusterSize: Short = 1,
-    pinnedNodes: Seq[Bytes32] = Seq.empty
+    pinnedNodes: List[Bytes32] = List.empty
   ): F[BigInt] =
     contract
       .addCode(
         stringToBytes32(code),
         stringToBytes32("receipt_stub"),
-        new Uint8(clusterSize), {
-          if (pinnedNodes.isEmpty) {
-            DynamicArray.empty("bytes32").asInstanceOf[DynamicArray[Bytes32]] //TODO: WHAAAT ?!
-          } else {
-            new DynamicArray[Bytes32](pinnedNodes: _*)
-          }
-        }
+        new Uint8(clusterSize),
+        listToDynamicArray(pinnedNodes)
       )
       .call[F]
       .map(_.getBlockNumber)
