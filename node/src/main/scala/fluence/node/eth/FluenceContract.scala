@@ -183,8 +183,13 @@ class FluenceContract(private val ethClient: EthClient, private val contract: Ne
       .addCode(
         stringToBytes32(code),
         stringToBytes32("receipt_stub"),
-        new Uint8(clusterSize),
-        new DynamicArray[Bytes32](pinnedNodes: _*)
+        new Uint8(clusterSize), {
+          if (pinnedNodes.isEmpty) {
+            DynamicArray.empty("bytes32").asInstanceOf[DynamicArray[Bytes32]] //TODO: WHAAAT ?!
+          } else {
+            new DynamicArray[Bytes32](pinnedNodes: _*)
+          }
+        }
       )
       .call[F]
       .map(_.getBlockNumber)
